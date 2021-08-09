@@ -1,6 +1,6 @@
 {
-    "name": "topthink/think-orm",
-    "description": "think orm",
+    "name": "oss_think/think-orm",
+    "description": "think orm ,somethings update",
     "keywords": [
         "orm",
         "database"
@@ -10,6 +10,10 @@
         {
             "name": "liu21st",
             "email": "liu21st@gmail.com"
+        },
+        {
+            "name": "jack",
+            "email": "997823131@qq.com"
         }
     ],
     "require": {

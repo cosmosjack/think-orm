@@ -41,6 +41,18 @@ trait WhereQuery
         return $this->parseWhereExp('AND', $field, $op, $condition, $param);
     }
 
+    /* 组装 搜索查询语句 start */
+    public function whereCreate($where){
+        //数组类型的 循环组装
+        if(count($where) <= 0){
+            return array('code'=>0,'msg'=>"查询条件错误");
+        }
+        $this->options['where'] = $where;
+        $this->options['is_jack'] = 1;
+        return $this;
+    }
+    /* 组装 搜索查询语句 end */
+
     /**
      * 解析Query对象查询条件
      * @access public

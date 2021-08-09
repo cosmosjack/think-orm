@@ -32,6 +32,7 @@ abstract class Builder
      * @var array
      */
     protected $exp = ['NOTLIKE' => 'NOT LIKE', 'NOTIN' => 'NOT IN', 'NOTBETWEEN' => 'NOT BETWEEN', 'NOTEXISTS' => 'NOT EXISTS', 'NOTNULL' => 'NOT NULL', 'NOTBETWEEN TIME' => 'NOT BETWEEN TIME'];
+    protected $comparison      = array('eq'=>'=','neq'=>'<>','gt'=>'>','egt'=>'>=','lt'=>'<','elt'=>'<=','notlike'=>'NOT LIKE','like'=>'LIKE','in'=>'IN','not in'=>'NOT IN');
 
     /**
      * 查询表达式解析
@@ -296,6 +297,9 @@ abstract class Builder
     protected function parseWhere(Query $query, array $where): string
     {
         $options  = $query->getOptions();
+        if(isset($options['is_jack']) && $options['is_jack'] == 1){
+            return $this->parseWhereJack($where);
+        }
         $whereStr = $this->buildWhere($query, $where);
 
         if (!empty($options['soft_delete'])) {
@@ -1301,5 +1305,184 @@ abstract class Builder
                 $this->parseComment($query, $options['comment']),
             ],
             $this->deleteSql);
+    }
+
+    /* jack where 分析 start */
+    protected function parseWhereJack($where){
+        $whereStr = '';
+        if(is_string($where)) {
+            $whereStr = $where;
+        }elseif(is_array($where)){
+            if(isset($where['_op'])) {
+                // 定义逻辑运算规则 例如 OR XOR AND NOT
+                $operate    =   ' '.strtoupper($where['_op']).' ';
+                unset($where['_op']);
+            }else{
+                $operate	=   ' AND ';
+            }
+            foreach ($where as $key=>$val){  // $where = array();
+//                $whereStr .= '( ';
+//                if(!preg_match('/^[A-Z_\|\&\-.a-z0-9]+$/',trim($key))){
+//                    $error = 'Model Error: args '.$key.' is wrong!';
+//                    throw_exception($error);
+//                }
+//                $key = trim($key);
+//                $whereStr   .= $this->parseWhereItems($this->parseKeyJack($key),$val);
+//                $whereStr .= ' )'.$operate;
+                $whereStrTemp = '';
+                if(0===strpos($key,'_')) {
+                    // 解析特殊条件表达式
+//                    $whereStr   .= $this->parseThinkWhere($key,$val);
+                }else{
+                    // 查询字段的安全过滤
+                    if(!preg_match('/^[A-Z_\|\&\-.a-z0-9]+$/',trim($key))){
+                        try {
+                            throw new Exception("传输的字符有问题", 0);
+
+                        } catch (Exception $e) {
+                            return json(['code'=>$e->getCode(),'msg'=>$e->getMessage()]);
+                        }
+                    }
+                    // 多条件支持
+                    // 如果 $where 的其中一个 $val 也是数组 并且包含 key _multi 则$multi为真
+                    $multi = is_array($val) &&  isset($val['_multi']);
+
+                    $key = trim($key); // 两边清空 空格及其他字符
+                    if(strpos($key,'|')) { // 支持 name|title|nickname 方式定义查询字段
+                        $array   =  explode('|',$key);
+                        $str   = array();
+                        foreach ($array as $m=>$k){
+                            $v =  $multi?$val[$m]:$val;
+                            $str[]   = '('.$this->parseWhereItems($this->parseKeyJack($k),$v).')';
+                        }
+                        $whereStrTemp .= implode(' OR ',$str);
+                    }elseif(strpos($key,'&')){
+                        $array   =  explode('&',$key);
+                        $str   = array();
+                        foreach ($array as $m=>$k){
+                            $v =  $multi?$val[$m]:$val;
+                            $str[]   = '('.$this->parseWhereItems($this->parseKeyJack($k),$v).')';
+                        }
+                        $whereStrTemp .= implode(' AND ',$str);
+                    }else{
+                        $whereStrTemp   .= $this->parseWhereItems($this->parseKeyJack($key),$val);
+                    }
+                }
+                if(!empty($whereStrTemp)) {
+                    $whereStr .= '( '.$whereStrTemp.' )'.$operate;
+                }
+            }
+            $whereStr = substr($whereStr,0,-strlen($operate));
+        }
+        // p($whereStr);
+        // die();
+        return empty($whereStr)?'':' WHERE '.$whereStr;
+    }
+    /* jack where 分析 end */
+
+    // where子单元分析
+    protected function parseWhereItems($key,$val) {
+        $whereStr = '';
+        if(is_array($val)) {
+            if(is_string($val[0])) {
+                if(preg_match('/^(EQ|NEQ|GT|EGT|LT|ELT|NOTLIKE|LIKE)$/i',$val[0])) { // 比较运算
+                    $whereStr .= $key.' '.$this->comparison[strtolower($val[0])].' '.$this->parseValue($val[1]);
+                }elseif('exp'==strtolower($val[0])){ // 使用表达式
+//                    $whereStr .= ' ('.$key.' '.$val[1].') ';
+                    $whereStr .= $val[1];
+                }elseif(preg_match('/IN/i',$val[0])){ // IN 运算
+                    if(isset($val[2]) && 'exp'==$val[2]) {
+                        $whereStr .= $key.' '.strtoupper($val[0]).' '.$val[1];
+                    }else{
+                        if (empty($val[1])){
+                            $whereStr .= $key.' '.strtoupper($val[0]).'(\'\')';
+                        }elseif(is_string($val[1]) || is_numeric($val[1])) {
+                            $val[1] =  explode(',',$val[1]);
+                            $zone   =   implode(',',$this->parseValue($val[1]));
+                            $whereStr .= $key.' '.strtoupper($val[0]).' ('.$zone.')';
+                        }elseif(is_array($val[1])){
+                            $zone   =   implode(',',$this->parseValue($val[1]));
+                            $whereStr .= $key.' '.strtoupper($val[0]).' ('.$zone.')';
+                        }
+                    }
+                }elseif(preg_match('/BETWEEN/i',$val[0])){
+                    $data = is_string($val[1])? explode(',',$val[1]):$val[1];
+                    if($data[0] && $data[1]) {
+                        $whereStr .=  ' ('.$key.' '.strtoupper($val[0]).' '.$this->parseValue($data[0]).' AND '.$this->parseValue($data[1]).' )';
+                    } elseif ($data[0]) {
+                        $whereStr .= $key.' '.$this->comparison['gt'].' '.$this->parseValue($data[0]);
+                    } elseif ($data[1]) {
+                        $whereStr .= $key.' '.$this->comparison['lt'].' '.$this->parseValue($data[1]);
+                    }
+                }elseif(preg_match('/TIME/i',$val[0])){
+                    $data = is_string($val[1])? explode(',',$val[1]):$val[1];
+                    if($data[0] && $data[1]) {
+                        $whereStr .=  ' ('.$key.' BETWEEN '.$this->parseValue($data[0]).' AND '.$this->parseValue($data[1] + 86400 -1).' )';
+                    } elseif ($data[0]) {
+                        $whereStr .= $key.' '.$this->comparison['gt'].' '.$this->parseValue($data[0]);
+                    } elseif ($data[1]) {
+                        $whereStr .= $key.' '.$this->comparison['lt'].' '.$this->parseValue($data[1] + 86400);
+                    }
+                }else{
+                    $error = 'Model Error: args '.$val[0].' is error!';
+                    throw new Exception($error,0);
+                }
+            }else {
+                $count = count($val);
+                if(in_array(strtoupper(trim($val[$count-1])),array('AND','OR','XOR'))) {
+                    $rule = strtoupper(trim($val[$count-1]));
+                    $count   =  $count -1;
+                }else{
+                    $rule = 'AND';
+                }
+                for($i=0;$i<$count;$i++) {
+                    if (is_array($val[$i])){
+                        if (is_array($val[$i][1])){
+                            $data = implode(',',$val[$i][1]);
+                        }else{
+                            $data = $val[$i][1];
+                        }
+                    }else{
+                        $data = $val[$i];
+                    }
+                    if('exp'==strtolower($val[$i][0])) {
+                        $whereStr .= '('.$key.' '.$data.') '.$rule.' ';
+                    }else{
+                        $op = is_array($val[$i])?$this->comparison[strtolower($val[$i][0])]:'=';
+                        if(preg_match('/IN/i',$op)){
+                            $whereStr .= '('.$key.' '.$op.' ('.$this->parseValue($data).')) '.$rule.' ';
+                        }else{
+                            $whereStr .= '('.$key.' '.$op.' '.$this->parseValue($data).') '.$rule.' ';
+                        }
+
+                    }
+                }
+                $whereStr = substr($whereStr,0,-4);
+            }
+        }else {
+            $whereStr .= $key.' = '.$this->parseValue($val);
+        }
+        return $whereStr;
+    }
+
+    protected function parseValue($value) {
+        if(is_string($value) || is_numeric($value)) {
+            $value = '\''.$this->escapeString($value).'\'';
+        }elseif(isset($value[0]) && is_string($value[0]) && strtolower($value[0]) == 'exp'){
+            $value   =  $value[1];
+        }elseif(is_array($value)) {
+            $value   =  array_map(array($this, 'parseValue'),$value);
+        }elseif(is_null($value)){
+            $value   =  'NULL';
+        }
+        return $value;
+    }
+
+    public function escapeString($str) {
+        $str = addslashes(stripslashes($str));//重新加斜线，防止从数据库直接读取出错
+        return $str;
+    }
+    protected function parseKeyJack(&$key) {
+        return $key;
     }
 }
