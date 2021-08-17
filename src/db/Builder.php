@@ -1479,6 +1479,7 @@ abstract class Builder
     }
 
     public function escapeString($str) {
+        $str = (string)$str;
         $str = addslashes(stripslashes($str));//重新加斜线，防止从数据库直接读取出错
         return $str;
     }
