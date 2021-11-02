@@ -45,7 +45,7 @@ trait WhereQuery
     public function whereCreate($where){
         //数组类型的 循环组装
         if(count($where) <= 0){
-            return array('code'=>0,'msg'=>"查询条件错误");
+            return $this;
         }
         $this->options['where'] = $where;
         $this->options['is_jack'] = 1;
