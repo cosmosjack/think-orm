@@ -1352,16 +1352,20 @@ abstract class Builder
                         $array   =  explode('|',$key);
                         $str   = array();
                         foreach ($array as $m=>$k){
-                            $v =  $multi?$val[$m]:$val;
-                            $str[]   = '('.$this->parseWhereItems($this->parseKeyJack($k),$v).')';
+                            if(!empty($k)){
+                                $v =  $multi?$val[$m]:$val;
+                                $str[]   = '('.$this->parseWhereItems($this->parseKeyJack($k),$v).')';
+                            }
                         }
                         $whereStrTemp .= implode(' OR ',$str);
                     }elseif(strpos($key,'&')){
                         $array   =  explode('&',$key);
                         $str   = array();
                         foreach ($array as $m=>$k){
-                            $v =  $multi?$val[$m]:$val;
-                            $str[]   = '('.$this->parseWhereItems($this->parseKeyJack($k),$v).')';
+                            if(!empty($k)){
+                                $v =  $multi?$val[$m]:$val;
+                                $str[]   = '('.$this->parseWhereItems($this->parseKeyJack($k),$v).')';
+                            }
                         }
                         $whereStrTemp .= implode(' AND ',$str);
                     }else{
