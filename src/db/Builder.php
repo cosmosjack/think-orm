@@ -33,6 +33,8 @@ abstract class Builder
      */
     protected $exp = ['NOTLIKE' => 'NOT LIKE', 'NOTIN' => 'NOT IN', 'NOTBETWEEN' => 'NOT BETWEEN', 'NOTEXISTS' => 'NOT EXISTS', 'NOTNULL' => 'NOT NULL', 'NOTBETWEEN TIME' => 'NOT BETWEEN TIME'];
     protected $comparison      = array('eq'=>'=','neq'=>'<>','gt'=>'>','egt'=>'>=','lt'=>'<','elt'=>'<=','notlike'=>'NOT LIKE','like'=>'LIKE','in'=>'IN','not in'=>'NOT IN');
+    public $sql_str = "";
+    public $search_arr = array();
 
     /**
      * 查询表达式解析
@@ -1333,6 +1335,8 @@ abstract class Builder
                 if(0===strpos($key,'_')) {
                     // 解析特殊条件表达式
 //                    $whereStr   .= $this->parseThinkWhere($key,$val);
+                }elseif(strpos($key,"(") !== false){
+                    $whereStr .= $this->brackets_create($key,$val).$operate;
                 }else{
                     // 查询字段的安全过滤
                     if(!preg_match('/^[A-Z_\|\&\-.a-z0-9]+$/',trim($key))){
@@ -1383,6 +1387,297 @@ abstract class Builder
         return empty($whereStr)?'':' WHERE '.$whereStr;
     }
     /* jack where 分析 end */
+
+    /* 带有括号的处理 start */
+    protected function brackets_create($str,$search_arr){
+        if($this->is_have_brackets($str)){
+            $this->form_brackets($str,$this->search_arr);
+            // p($this->search_arr);
+        }
+
+        $this->sql_create($this->search_arr,$search_arr);
+        // p($this->sql_str);
+        $this->sql_str = str_replace("|)",") OR ",$this->sql_str);
+        // p($this->sql_str);
+        $this->sql_str = str_replace("&)",") AND ",$this->sql_str);
+        // p($this->sql_str);
+
+        $this->sql_str = "( ". rtrim($this->sql_str,"AND")." )";
+        // p($this->sql_str);
+
+        return $this->sql_str;
+    }
+
+    protected function remove_brackets($str){
+
+        if(strpos($str,"((") !== false){
+            //存在 (( 去掉单个
+            $result_str = substr($str,1,strlen($str)-2);
+            return $result_str;
+        }else{
+            return $str;
+        }
+    }
+
+    protected function is_need_form($str){
+        if(strpos($str,"((") !== false){
+            return true;//存在 需要循环 匹配
+        }else{
+            return false;
+        }
+    }
+
+    protected function is_have_brackets($str){
+        if(strpos($str,"(") !== false){
+            return true;
+        }else{
+            return false;
+        }
+    }
+
+    /* 梳理带有括号的查询条件 start */
+    protected function form_brackets($str,&$search_position,$relation = "AND"){
+        // p($relation);
+
+        // $pattern = "/(\(key_1&key_2\))/i";
+        $pattern = "/( (  (\() ([^[]*?)  (?R)?  (\))  ){0,})([&|]?) /x";
+        // $pattern = "/( (  (\() ([^[]*?)  (?R)?  (\))  ){0,}) /x";
+        preg_match_all($pattern,$str,$matches);
+
+        // p($matches);
+        // die();
+        if(!isset($matches[1]) && count($matches[1]) <1){
+            //后边需要使用 错误输出 exception
+
+            return false;//不需要用这种方式，直接返回错误
+        }
+        $str_arr = $matches[1];
+        unset($str_arr[count($str_arr)-1]);
+        // p($str_arr);
+
+        /* 获取关系 start */
+        $relation_arr = $matches[6];
+        // p($relation_arr);
+        unset($relation_arr[count($relation_arr)-1]);
+        unset($relation_arr[count($relation_arr)-1]);
+        // p($relation_arr);
+        /* 获取关系 end */
+
+        foreach ($str_arr as $key=>$val){
+            $search_position[$key] = [];
+            $val = $this->remove_brackets($val);
+            if($this->is_have_brackets($val)){
+                if(isset($relation_arr[$key])){
+                    $relation_new = $relation_arr[$key];
+                }else{
+                    $relation_new = "end";
+                }
+                /* 如果只剩一层 则不需要再 计算了 start */
+                preg_match_all($pattern,$val,$matches_son);
+                if(!isset($matches_son[1]) && count($matches_son[1]) <1){
+                    //执行另一种方法
+                    $this->form_son($val,$search_position[$key],$relation_new);
+                }
+                $str_arr_son = $matches_son[1];
+                if(count($str_arr_son) <=2){
+                    //执行另一种方法
+                    $this->form_son($val,$search_position[$key],$relation_new);
+
+                }else{
+
+                    $this->form_brackets($val,$search_position[$key],$relation_new);
+
+                }
+                /* 如果只剩一层 则不需要再 计算了 end */
+
+            }else{
+                continue;
+            }
+
+        }
+        if($relation != "end"){
+            $search_position["_relation"] = $relation;
+        }
+
+
+        // $result = $this->remove_brackets($matches[1][0]);
+        // p($result);
+        // die();
+    }
+    /* 梳理带有括号的查询条件 end */
+
+    /* 另一种方法 start */
+    protected function form_son($str,&$search_position,$relation_p){
+
+        // if(strpos($str,"key_3") !== false){
+        //     $search_position["_relation"] = $relation_p;
+        //     p($search_position["_relation"]);
+        //     p($this->search_arr);
+        //     die();
+        // }
+
+        //先去掉 两边的 括号
+        $str = trim($str,"\(\)");
+        //再生成数组
+        if(strpos($str,"|") !== false){
+            $val_arr = explode("|",$str);
+            $relation = "OR";
+
+            $count_num = count($val_arr);
+            foreach ($val_arr as $key=>$val){
+                if($key < ($count_num-1) ){
+                    $search_position[$key] = array(
+                        "field" =>$val,
+                        "_relation"=>$relation
+                    );
+                }else{
+                    $search_position[$key] = array(
+                        "field" =>$val,
+                    );
+                }
+            }
+        }
+
+        if(strpos($str,"&") !== false){
+            $val_arr = explode("&",$str);
+            $relation = "AND";
+            $count_num = count($val_arr);
+            foreach ($val_arr as $key=>$val){
+                if($key < ($count_num-1) ){
+                    $search_position[$key] = array(
+                        "field" =>$val,
+                        "_relation"=>$relation
+                    );
+                }else{
+                    $search_position[$key] = array(
+                        "field" =>$val,
+                    );
+                }
+            }
+        }
+
+        if(strpos($str,"|") === false && strpos($str,"&") === false){
+            $search_position[0] = $str;
+
+        }
+
+        if($relation_p != "end"){
+            $search_position["_relation"] = $relation_p;
+        }
+
+    }
+    /* 另一种方法 end */
+
+
+    /* 生成 sql start */
+    protected function sql_create($key_arr,$search_arr){
+
+
+        /*
+         * 生成流程
+         * 读取数组
+         * 发现有子集则 产生 括号，继续往下走
+         * 又发现有子集 则继续产生 括号，继续往下走（产生的括号必须是 闭合的）
+         * 又发现有子集，则继续产生 括号（只要不是 field 则继续往下）
+         * 如果发现是 field 则 开始加入条件 key_1 = get_value(value,$position) 获取到对应的值
+         * 再根据获取对应的值 返回 sql 语句
+         * 将返回的语句 拼接至 结尾
+         * */
+
+        // p($key_arr);
+
+        // if($key_arr[0] == "key_9"){
+        //     p($this->sql_str);
+        //     p(is_array($key_arr[0]) && count($key_arr[0]) > 0 && is_numeric($key_arr[0]));
+        //     p($key_arr[0]);
+        //
+        //     if(is_numeric(0)){
+        //         p("jack");
+        //     }
+        //     // die();
+        // }
+
+        foreach ($key_arr as $key=>$val){
+            // if($key != '_relation'){
+            //     $search_val = $search_arr[$key];
+            // }
+            if(is_array($val) && count($val) > 0 && is_numeric($key)){
+                if(isset($search_arr[$key])){
+                    $search_val = $search_arr[$key];
+                }
+
+                if(isset($val['field'])){
+                    //则退出 不再循环
+                    if(isset($val['_relation'])){
+
+                        /* 根据 位置 获取条件 start */
+                        // p("我是条件1 {$val['field']} ");
+                        // p($search_val);
+                        /* 根据 位置 获取条件 end */
+
+                        /* 生成条件sql start */
+                        $now_key = $val['field'];
+                        $where_sql = $this->parseWhereItems($now_key,$search_val);
+                        $this->sql_str .= $where_sql;
+                        /* 生成条件sql end */
+
+                        // $this->sql_str .= "我是条件1{$val['field']} ";
+
+
+
+                        $this->sql_str .= $val['_relation']." ";
+                    }else{
+                        /* 根据 位置 获取条件 start */
+
+                        // p("我是条件1 {$val['field']} ");
+                        // p($search_val);
+                        /* 根据 位置 获取条件 end */
+                        /* 生成条件sql start */
+                        $where_sql = $this->parseWhereItems($val['field'],$search_val);
+                        $this->sql_str .= $where_sql;
+                        /* 生成条件sql end */
+
+                        // $this->sql_str .= "我是条件1{$val['field']} ";
+                    }
+
+                }else{
+
+                    //生成左 括号
+                    $this->sql_str .= "( ";
+                    //执行自己
+                    $this->sql_create($val,$search_val);
+                    //再生成右括号
+                    $this->sql_str .= ") ";
+                    // $this->sql_str .= $val['_relation'];
+                }
+            }elseif (is_numeric($key) && !is_array($val)){
+                $search_val = $search_arr[$key];
+
+                /* 根据 位置 获取条件 start */
+                // p("我是条件2 {$val}");
+                // p($search_arr[$key]);
+                /* 根据 位置 获取条件 end */
+
+                /* 生成条件sql start */
+                $where_sql = $this->parseWhereItems($val,$search_val);
+                $this->sql_str .= $where_sql;
+                /* 生成条件sql end */
+
+                // $this->sql_str .= "我是条件2";
+            }
+
+        }
+
+        if(is_array($key_arr) && isset($key_arr["_relation"])){
+            $this->sql_str .= $key_arr["_relation"];
+        }
+
+
+    }
+    /* 生成 sql end */
+
+    /* 带有括号的处理 end */
+
 
     // where子单元分析
     protected function parseWhereItems($key,$val) {
