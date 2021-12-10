@@ -1337,6 +1337,7 @@ abstract class Builder
 //                    $whereStr   .= $this->parseThinkWhere($key,$val);
                 }elseif(strpos($key,"(") !== false){
                     $whereStr .= $this->brackets_create($key,$val).$operate;
+                    $this->sql_str = "";
                 }else{
                     // 查询字段的安全过滤
                     if(!preg_match('/^[A-Z_\|\&\-.a-z0-9]+$/',trim($key))){
