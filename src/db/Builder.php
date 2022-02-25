@@ -27,6 +27,11 @@ abstract class Builder
      */
     protected $connection;
 
+    public $mysql_key = [
+      "key",
+      "exp"
+    ];
+
     /**
      * 查询表达式映射
      * @var array
@@ -1784,6 +1789,10 @@ abstract class Builder
         return $str;
     }
     protected function parseKeyJack(&$key) {
-        return "`{$key}`";
+        if(in_array($key,$this->mysql_key)){
+            return "`{$key}`";
+        }else{
+            return $key;
+        }
     }
 }
