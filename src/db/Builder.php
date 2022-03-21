@@ -1341,6 +1341,7 @@ abstract class Builder
                     // 解析特殊条件表达式
 //                    $whereStr   .= $this->parseThinkWhere($key,$val);
                 }elseif(strpos($key,"(") !== false){
+                    unset($this->search_arr);
                     $whereStr .= $this->brackets_create($key,$val).$operate;
                     $this->sql_str = "";
                 }else{
