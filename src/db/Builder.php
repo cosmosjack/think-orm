@@ -1729,6 +1729,8 @@ abstract class Builder
                     } elseif ($data[1]) {
                         $whereStr .= $key.' '.$this->comparison['lt'].' '.$this->parseValue($data[1] + 86400);
                     }
+                }elseif (preg_match('/NULL/i',$val[0])){
+                    $whereStr .= $key." IS NULL";
                 }else{
                     $error = 'Model Error: args '.$val[0].' is error!';
                     throw new Exception($error,0);
