@@ -943,7 +943,7 @@ abstract class BaseQuery
 
         $this->options['data'] = array_merge($this->options['data'] ?? [], $data);
 
-        if (!empty($this->options['where'])) {
+        if (!empty($this->options['where']) || !empty($this->options['where_create']) ) {
             $isUpdate = true;
         } else {
             $isUpdate = $this->parseUpdateData($this->options['data']);
@@ -1032,7 +1032,7 @@ abstract class BaseQuery
             $this->where($this->model->getWhere());
         }
 
-        if (empty($this->options['where'])) {
+        if (empty($this->options['where']) && empty($this->options['where_create'])) {
             // 如果没有任何更新条件则不执行
             throw new Exception('miss update condition');
         }
@@ -1058,7 +1058,7 @@ abstract class BaseQuery
             $this->where($this->model->getWhere());
         }
 
-        if (true !== $data && empty($this->options['where'])) {
+        if (true !== $data && ( empty($this->options['where']) && empty($this->options['where_create']))) {
             // 如果条件为空 不进行删除操作 除非设置 1=1
             throw new Exception('delete without condition');
         }
@@ -1124,12 +1124,14 @@ abstract class BaseQuery
      */
     public function find($data = null)
     {
+
+
         if (!is_null($data)) {
             // AR模式分析主键条件
             $this->parsePkWhere($data);
         }
 
-        if (empty($this->options['where']) && empty($this->options['order'])) {
+        if ( ( empty($this->options['where']) && empty($this->options['where_create']) )  && empty($this->options['order'])) {
             $result = [];
         } else {
             $result = $this->connection->find($this);
@@ -1271,6 +1273,16 @@ abstract class BaseQuery
                 $this->where($key, '=', $data);
                 $this->options['key'] = $data;
             }
+        }
+    }
+
+    /**
+     * 验证whereCreate 是否存在
+     * auther:Jack
+     */
+    public function checkWhereCreate(){
+        if(!isset($this->options['where_create'])){
+            $this->options['where_create'] = [];
         }
     }
 

@@ -47,7 +47,7 @@ trait WhereQuery
         if(count($where) <= 0){
             return $this;
         }
-        $this->options['where'] = $where;
+        $this->options['where_create'] = $where;
         $this->options['is_jack'] = 1;
         return $this;
     }

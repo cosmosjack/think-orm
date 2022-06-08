@@ -80,6 +80,8 @@ class Mysql extends Builder
      */
     public function select(Query $query, bool $one = false): string
     {
+        $query->checkWhereCreate();
+
         $options = $query->getOptions();
 
         return str_replace(
@@ -91,6 +93,7 @@ class Mysql extends Builder
                 $this->parseExtra($query, $options['extra']),
                 $this->parseField($query, $options['field'] ?? '*'),
                 $this->parseJoin($query, $options['join']),
+                $this->parseWhereCreate($query, $options['where_create']),
                 $this->parseWhere($query, $options['where']),
                 $this->parseGroup($query, $options['group']),
                 $this->parseHaving($query, $options['having']),
@@ -201,6 +204,8 @@ class Mysql extends Builder
      */
     public function update(Query $query): string
     {
+        $query->checkWhereCreate();
+
         $options = $query->getOptions();
 
         $data = $this->parseData($query, $options['data']);
@@ -221,6 +226,7 @@ class Mysql extends Builder
                 $this->parseExtra($query, $options['extra']),
                 implode(' , ', $set),
                 $this->parseJoin($query, $options['join']),
+                $this->parseWhereCreate($query, $options['where_create']),
                 $this->parseWhere($query, $options['where']),
                 $this->parseOrder($query, $options['order']),
                 $this->parseLimit($query, $options['limit']),
@@ -238,6 +244,8 @@ class Mysql extends Builder
      */
     public function delete(Query $query): string
     {
+        $query->checkWhereCreate();
+
         $options = $query->getOptions();
 
         return str_replace(
@@ -248,6 +256,7 @@ class Mysql extends Builder
                 $this->parseExtra($query, $options['extra']),
                 !empty($options['using']) ? ' USING ' . $this->parseTable($query, $options['using']) . ' ' : '',
                 $this->parseJoin($query, $options['join']),
+                $this->parseWhereCreate($query, $options['where_create']),
                 $this->parseWhere($query, $options['where']),
                 $this->parseOrder($query, $options['order']),
                 $this->parseLimit($query, $options['limit']),

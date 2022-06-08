@@ -294,6 +294,26 @@ abstract class Builder
         return implode(',', $item);
     }
 
+
+    protected function parseWhereCreate(Query $query,$whereCreate):void
+    {
+
+        //返回 空字符串
+        //把option 中 where_str_jack 添加上 同时还要记得清空，以免重复 追加
+        $options  = $query->getOptions();
+        if(isset($options['is_jack']) && $options['is_jack'] == 1){
+//            ppp($whereCreate);
+
+            $where_str_jack = $this->parseWhereJack($whereCreate);
+//            ppp($where_str_jack);
+
+            if(strlen($where_str_jack)>5){
+                $query->setOption("is_where_create",1);
+                $query->setOption("where_str_jack",$where_str_jack);
+            }
+        }
+    }
+
     /**
      * where分析
      * @access protected
@@ -304,9 +324,7 @@ abstract class Builder
     protected function parseWhere(Query $query, array $where): string
     {
         $options  = $query->getOptions();
-        if(isset($options['is_jack']) && $options['is_jack'] == 1){
-            return $this->parseWhereJack($where);
-        }
+
         $whereStr = $this->buildWhere($query, $where);
 
         if (!empty($options['soft_delete'])) {
@@ -318,7 +336,19 @@ abstract class Builder
             $whereStr = $whereStr . $this->parseWhereItem($query, $field, $condition, $binds);
         }
 
-        return empty($whereStr) ? '' : ' WHERE ' . $whereStr;
+        /* 判断 where 是否有存在 如果有 则直接加入到后边 start */
+        if(isset($options['is_where_create']) && $options['is_where_create'] == 1){
+            $where_str_jack = $query->getOptions("where_str_jack");
+//            p($whereStr);
+//            p($where_str_jack);die();
+            return empty($whereStr) ? $where_str_jack : $where_str_jack. ' AND ' . $whereStr;
+
+        }else{
+            return empty($whereStr) ? '' : ' WHERE ' . $whereStr;
+
+        }
+        /* 判断 where 是否有存在 如果有 则直接加入到后边 end */
+
     }
 
     /**
@@ -1128,6 +1158,7 @@ abstract class Builder
      */
     public function select(Query $query, bool $one = false): string
     {
+        $query->checkWhereCreate();
         $options = $query->getOptions();
 
         return str_replace(
@@ -1138,6 +1169,7 @@ abstract class Builder
                 $this->parseExtra($query, $options['extra']),
                 $this->parseField($query, $options['field'] ?? '*'),
                 $this->parseJoin($query, $options['join']),
+                $this->parseWhereCreate($query, $options['where_create']),
                 $this->parseWhere($query, $options['where']),
                 $this->parseGroup($query, $options['group']),
                 $this->parseHaving($query, $options['having']),
@@ -1259,6 +1291,7 @@ abstract class Builder
      */
     public function update(Query $query): string
     {
+        $query->checkWhereCreate();
         $options = $query->getOptions();
 
         $data = $this->parseData($query, $options['data']);
@@ -1279,6 +1312,7 @@ abstract class Builder
                 $this->parseExtra($query, $options['extra']),
                 implode(' , ', $set),
                 $this->parseJoin($query, $options['join']),
+                $this->parseWhereCreate($query, $options['where_create']),
                 $this->parseWhere($query, $options['where']),
                 $this->parseOrder($query, $options['order']),
                 $this->parseLimit($query, $options['limit']),
@@ -1296,6 +1330,8 @@ abstract class Builder
      */
     public function delete(Query $query): string
     {
+        $query->checkWhereCreate();
+
         $options = $query->getOptions();
 
         return str_replace(
@@ -1305,6 +1341,7 @@ abstract class Builder
                 $this->parseExtra($query, $options['extra']),
                 !empty($options['using']) ? ' USING ' . $this->parseTable($query, $options['using']) . ' ' : '',
                 $this->parseJoin($query, $options['join']),
+                $this->parseWhereCreate($query, $options['where_create']),
                 $this->parseWhere($query, $options['where']),
                 $this->parseOrder($query, $options['order']),
                 $this->parseLimit($query, $options['limit']),
