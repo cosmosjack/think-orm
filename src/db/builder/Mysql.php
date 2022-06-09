@@ -83,7 +83,7 @@ class Mysql extends Builder
         $query->checkWhereCreate();
 
         $options = $query->getOptions();
-
+        $this->parseWhereCreate($query, $options['where_create']);
         return str_replace(
             ['%TABLE%', '%PARTITION%', '%DISTINCT%', '%EXTRA%', '%FIELD%', '%JOIN%', '%WHERE%', '%GROUP%', '%HAVING%', '%ORDER%', '%LIMIT%', '%UNION%', '%LOCK%', '%COMMENT%', '%FORCE%'],
             [
@@ -93,7 +93,6 @@ class Mysql extends Builder
                 $this->parseExtra($query, $options['extra']),
                 $this->parseField($query, $options['field'] ?? '*'),
                 $this->parseJoin($query, $options['join']),
-                $this->parseWhereCreate($query, $options['where_create']),
                 $this->parseWhere($query, $options['where']),
                 $this->parseGroup($query, $options['group']),
                 $this->parseHaving($query, $options['having']),
@@ -217,6 +216,8 @@ class Mysql extends Builder
         foreach ($data as $key => $val) {
             $set[] = $key . ' = ' . $val;
         }
+        //生成条件的一部分
+        $this->parseWhereCreate($query, $options['where_create']);
 
         return str_replace(
             ['%TABLE%', '%PARTITION%', '%EXTRA%', '%SET%', '%JOIN%', '%WHERE%', '%ORDER%', '%LIMIT%', '%LOCK%', '%COMMENT%'],
@@ -226,7 +227,6 @@ class Mysql extends Builder
                 $this->parseExtra($query, $options['extra']),
                 implode(' , ', $set),
                 $this->parseJoin($query, $options['join']),
-                $this->parseWhereCreate($query, $options['where_create']),
                 $this->parseWhere($query, $options['where']),
                 $this->parseOrder($query, $options['order']),
                 $this->parseLimit($query, $options['limit']),
@@ -247,6 +247,7 @@ class Mysql extends Builder
         $query->checkWhereCreate();
 
         $options = $query->getOptions();
+        $this->parseWhereCreate($query, $options['where_create']);
 
         return str_replace(
             ['%TABLE%', '%PARTITION%', '%EXTRA%', '%USING%', '%JOIN%', '%WHERE%', '%ORDER%', '%LIMIT%', '%LOCK%', '%COMMENT%'],
@@ -256,7 +257,6 @@ class Mysql extends Builder
                 $this->parseExtra($query, $options['extra']),
                 !empty($options['using']) ? ' USING ' . $this->parseTable($query, $options['using']) . ' ' : '',
                 $this->parseJoin($query, $options['join']),
-                $this->parseWhereCreate($query, $options['where_create']),
                 $this->parseWhere($query, $options['where']),
                 $this->parseOrder($query, $options['order']),
                 $this->parseLimit($query, $options['limit']),

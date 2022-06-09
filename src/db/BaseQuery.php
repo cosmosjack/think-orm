@@ -1166,6 +1166,10 @@ abstract class BaseQuery
             $options['table'] = $this->getTable();
         }
 
+        if(!isset($this->options['where_create'])){
+            $options['where_create'] = [];
+        }
+
         if (!isset($options['where'])) {
             $options['where'] = [];
         } elseif (isset($options['view'])) {
